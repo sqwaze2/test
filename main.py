@@ -190,7 +190,10 @@ async def handle_direct(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_business(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.business_message
+    msg = (
+        update.business_message
+        or update.edited_business_message
+    )
     if not msg:
         return
     text = msg.text or ""
@@ -201,6 +204,7 @@ async def handle_business(update: Update, context: ContextTypes.DEFAULT_TYPE):
         business_connection_id=msg.business_connection_id,
         reply_to_message_id=msg.message_id,
     )
+
 
 
 async def handle_business_sent(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -233,5 +237,9 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_direct))
 app.add_handler(MessageHandler(filters.UpdateType.BUSINESS_MESSAGE, handle_business))
 app.add_handler(MessageHandler(filters.UpdateType.EDITED_BUSINESS_MESSAGE, handle_business_sent))
+app.add_handler(MessageHandler(filters.ALL, debug_update), group=1)
+
+async def debug_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f"UPDATE: {update}")
 
 app.run_polling(allowed_updates=["message", "business_message", "edited_business_message"])

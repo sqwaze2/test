@@ -198,8 +198,12 @@ async def handle_business(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.business_message or update.edited_business_message
     if not msg:
         return
-    print(f"[handle_business] full msg={msg}")
+    if msg.from_user and msg.from_user.is_bot:
+        return
     text = msg.text or msg.caption or ""
+    if not text and msg.reply_to_message:
+        text = msg.reply_to_message.text or ""
+    print(f"[handle_business] text={text}")
     await process_url(
         context=context,
         text=text,
@@ -207,8 +211,6 @@ async def handle_business(update: Update, context: ContextTypes.DEFAULT_TYPE):
         business_connection_id=msg.business_connection_id,
         reply_to_message_id=msg.message_id,
     )
-
-
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):

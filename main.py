@@ -224,6 +224,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎵 Spotify → MP3"
     )
 
+async def log_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f"[ANY UPDATE] {update.update_id} | {update}")
+
+app.add_handler(MessageHandler(filters.ALL, log_all), group=-1)
+
 
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -232,4 +237,5 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_direct))
 app.add_handler(MessageHandler(filters.UpdateType.BUSINESS_MESSAGE, handle_business))
 app.add_handler(MessageHandler(filters.UpdateType.EDITED_BUSINESS_MESSAGE, handle_business))
 
-app.run_polling(allowed_updates=["message", "business_message", "edited_business_message"])
+app.run_polling(allowed_updates=Update.ALL_TYPES)
+

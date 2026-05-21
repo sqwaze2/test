@@ -54,7 +54,7 @@ async def download_yt(url: str, path: str, audio_only: bool = False):
             "preferredquality": "192",
         }]
     else:
-        ydl_opts["format"] = "mp4/bestvideo+bestaudio/best"
+        ydl_opts["format"] = "best[ext=mp4]/best"
         ydl_opts["merge_output_format"] = "mp4"
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:

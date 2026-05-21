@@ -64,35 +64,28 @@ async def download_yt(url: str, path: str, audio_only: bool = False):
 async def download_spotify(url: str, path: str) -> dict:
     track_id = url.split("/track/")[1].split("?")[0]
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        token_res = await client.get(
-            "https://spotifydown.com/api/token",
-            headers={"Referer": "https://spotifydown.com/"}
+    async with httpx.AsyncClient(timeout=60) as client:
+        res = await client.post(
+            "https://lucida.to/api/load",
+            json={"url": url, "country": "DE"},
+            headers={"Content-Type": "application/json"}
         )
-        token = token_res.json().get("token")
+        data = res.json()
 
-        dl_res = await client.get(
-            f"https://spotifydown.com/api/download/{track_id}",
-            params={"token": token},
-            headers={"Referer": "https://spotifydown.com/"}
-        )
-        data = dl_res.json()
-
-        if not data.get("success") or not data.get("link"):
+        if not data.get("url"):
             raise Exception("Не удалось получить ссылку на трек")
 
-        mp3 = await client.get(data["link"], follow_redirects=True)
+        mp3 = await client.get(data["url"], follow_redirects=True)
         with open(path, "wb") as f:
             f.write(mp3.content)
 
         return {
             "title": data.get("metadata", {}).get("title", "track"),
-            "artist": data.get("metadata", {}).get("artists", "unknown"),
+            "artist": data.get("metadata", {}).get("artist", "unknown"),
         }
 
 
 async def process_url(
-    update: Update,
     context,
     text: str,
     chat_id: int,
@@ -104,7 +97,6 @@ async def process_url(
         return
 
     uid = abs(hash(text + str(chat_id))) % 10**9
-
     send_kwargs = {"business_connection_id": business_connection_id} if business_connection_id else {}
 
     msg = await context.bot.send_message(
@@ -187,17 +179,14 @@ async def process_url(
         )
 
 
-
 async def handle_direct(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text or ""
     await process_url(
-        update=update,
         context=context,
         text=text,
         chat_id=update.message.chat.id,
         reply_to_message_id=update.message.message_id,
     )
-
 
 
 async def handle_business(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -206,7 +195,20 @@ async def handle_business(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     text = msg.text or ""
     await process_url(
-        update=update,
+        context=context,
+        text=text,
+        chat_id=msg.chat.id,
+        business_connection_id=msg.business_connection_id,
+        reply_to_message_id=msg.message_id,
+    )
+
+
+async def handle_business_sent(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.edited_business_message or update.business_message
+    if not msg:
+        return
+    text = msg.text or ""
+    await process_url(
         context=context,
         text=text,
         chat_id=msg.chat.id,
@@ -230,5 +232,6 @@ app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_direct))
 app.add_handler(MessageHandler(filters.UpdateType.BUSINESS_MESSAGE, handle_business))
+app.add_handler(MessageHandler(filters.UpdateType.EDITED_BUSINESS_MESSAGE, handle_business_sent))
 
-app.run_polling(allowed_updates=["message", "business_message"])
+app.run_polling(allowed_updates=["message", "business_message", "edited_business_message"])

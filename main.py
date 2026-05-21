@@ -184,6 +184,7 @@ async def process_url(
 async def handle_direct(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
+    print(f"[handle_direct] text={update.message.text}")
     text = update.message.text or ""
     await process_url(
         context=context,

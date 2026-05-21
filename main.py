@@ -96,6 +96,8 @@ async def process_url(
     if not url:
         return
 
+    print(f"[process_url] platform={platform} url={url}")
+
     uid = abs(hash(text + str(chat_id))) % 10**9
     send_kwargs = {"business_connection_id": business_connection_id} if business_connection_id else {}
 
@@ -180,6 +182,8 @@ async def process_url(
 
 
 async def handle_direct(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message:
+        return
     text = update.message.text or ""
     await process_url(
         context=context,
@@ -190,27 +194,10 @@ async def handle_direct(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_business(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = (
-        update.business_message
-        or update.edited_business_message
-    )
+    msg = update.business_message or update.edited_business_message
     if not msg:
         return
-    text = msg.text or ""
-    await process_url(
-        context=context,
-        text=text,
-        chat_id=msg.chat.id,
-        business_connection_id=msg.business_connection_id,
-        reply_to_message_id=msg.message_id,
-    )
-
-
-
-async def handle_business_sent(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.edited_business_message or update.business_message
-    if not msg:
-        return
+    print(f"[handle_business] text={msg.text}")
     text = msg.text or ""
     await process_url(
         context=context,
@@ -222,6 +209,8 @@ async def handle_business_sent(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message:
+        return
     await update.message.reply_text(
         "⚡️ Привет! Я Zappy.\n\n"
         "Кидай ссылку — пришлю файл:\n"
@@ -233,13 +222,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 app = ApplicationBuilder().token(TOKEN).build()
 
-async def debug_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f"UPDATE: {update}")
-
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_direct))
 app.add_handler(MessageHandler(filters.UpdateType.BUSINESS_MESSAGE, handle_business))
-app.add_handler(MessageHandler(filters.UpdateType.EDITED_BUSINESS_MESSAGE, handle_business_sent))
-app.add_handler(MessageHandler(filters.ALL, debug_update), group=1)
+app.add_handler(MessageHandler(filters.UpdateType.EDITED_BUSINESS_MESSAGE, handle_business))
 
 app.run_polling(allowed_updates=["message", "business_message", "edited_business_message"])

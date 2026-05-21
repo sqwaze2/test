@@ -227,10 +227,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def log_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"[ANY UPDATE] {update.update_id} | {update}")
 
-app.add_handler(MessageHandler(filters.ALL, log_all), group=-1)
+
 
 
 app = ApplicationBuilder().token(TOKEN).build()
+
+app.add_handler(MessageHandler(filters.ALL, log_all), group=-1)
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_direct))

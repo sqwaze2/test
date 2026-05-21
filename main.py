@@ -233,13 +233,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 app = ApplicationBuilder().token(TOKEN).build()
 
+async def debug_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f"UPDATE: {update}")
+
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_direct))
 app.add_handler(MessageHandler(filters.UpdateType.BUSINESS_MESSAGE, handle_business))
 app.add_handler(MessageHandler(filters.UpdateType.EDITED_BUSINESS_MESSAGE, handle_business_sent))
 app.add_handler(MessageHandler(filters.ALL, debug_update), group=1)
-
-async def debug_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f"UPDATE: {update}")
 
 app.run_polling(allowed_updates=["message", "business_message", "edited_business_message"])

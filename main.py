@@ -143,7 +143,7 @@ async def process_url(
                 await context.bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=msg.message_id,
-                    text=f"❌ Видео слишком большое ({size_mb:.1f} МБ), максимум 50 МБ.",
+                    text=f"❌ Видео слишком большое ({size_mb:.1f} МБ), максимум 2 ГБ.",
                 )
                 return
 

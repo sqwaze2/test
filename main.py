@@ -18,6 +18,11 @@ TOKEN = os.getenv("TOKEN")
 
 processed_messages = set()
 
+cookies_content = os.getenv("YOUTUBE_COOKIES")
+if cookies_content:
+    with open("cookies.txt", "w") as f:
+        f.write(cookies_content.replace("\\n", "\n"))
+
 PATTERNS = {
     "tiktok": re.compile(
         r'(https?://)?(www\.)?(vm\.tiktok\.com|vt\.tiktok\.com|tiktok\.com|m\.tiktok\.com)(/[^\s]*)?'
@@ -59,12 +64,15 @@ async def download_youtube(url: str, path: str, audio_only: bool = False):
         "quiet": True,
         "noplaylist": True,
     }
+    if os.path.exists("cookies.txt"):
+        ydl_opts["cookiefile"] = "cookies.txt"
+
     if audio_only:
         ydl_opts["format"] = "bestaudio/best"
         ydl_opts["postprocessors"] = [{
             "key": "FFmpegExtractAudio",
             "preferredcodec": "mp3",
-            "preferredquality": "192",
+            "preferredquality": "320",
         }]
     else:
         ydl_opts["format"] = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
@@ -72,50 +80,6 @@ async def download_youtube(url: str, path: str, audio_only: bool = False):
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
-
-
-async def get_spotify_meta(url: str) -> dict:
-    async with httpx.AsyncClient(timeout=30) as client:
-        res = await client.get(
-            url,
-            headers={"User-Agent": "Mozilla/5.0"}
-        )
-        title = ""
-        artist = ""
-        for line in res.text.splitlines():
-            if 'og:title' in line:
-                title = line.split('content="')[1].split('"')[0]
-            if 'og:description' in line:
-                artist = line.split('content="')[1].split('"')[0].split(" · ")[0]
-        return {"title": title, "artist": artist}
-
-
-async def download_spotify(url: str, path: str) -> dict:
-    meta = await get_spotify_meta(url)
-    query = f"{meta['artist']} - {meta['title']} audio"
-    print(f"[spotify] searching: {query}")
-
-    ydl_opts = {
-        "outtmpl": path,
-        "quiet": True,
-        "noplaylist": True,
-        "format": "bestaudio[ext=m4a]/bestaudio/best",
-        "default_search": "ytsearch1",
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "mp3",
-            "preferredquality": "320",
-        }],
-    }
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([query])
-
-    return meta
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([query])
-
-    return meta
 
 
 async def process_url(
@@ -197,18 +161,15 @@ async def process_url(
                 os.remove(path)
 
         elif platform == "spotify":
-            path = f"track_{uid}.mp3"
-            meta = await download_spotify(url, path)
-            with open(path, "rb") as f:
-                await context.bot.send_audio(
+            try:
+                await context.bot.edit_message_text(
                     chat_id=chat_id,
-                    audio=f,
-                    title=meta["title"],
-                    performer=meta["artist"],
-                    reply_to_message_id=reply_to_message_id,
-                    **send_kwargs,
+                    message_id=msg.message_id,
+                    text="⏳ Скачивание Spotify временно недоступно.",
                 )
-            os.remove(path)
+            except Exception:
+                pass
+            return
 
         try:
             await context.bot.delete_message(chat_id=chat_id, message_id=msg.message_id)
@@ -294,7 +255,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Кидай ссылку — пришлю файл:\n"
         "🎬 TikTok → видео\n"
         "▶️ YouTube → видео или аудио\n"
-        "🎵 Spotify → MP3"
+        "🎵 Spotify → скоро"
     )
 
 

@@ -81,12 +81,13 @@ async def get_spotify_meta(track_id: str) -> dict:
             data={"grant_type": "client_credentials"},
             auth=(os.getenv("SPOTIFY_CLIENT_ID"), os.getenv("SPOTIFY_CLIENT_SECRET"))
         )
+        print(f"[spotify] token_res={token_res.status_code} {token_res.text}")
         token = token_res.json().get("access_token")
-
         track_res = await client.get(
             f"https://api.spotify.com/v1/tracks/{track_id}",
             headers={"Authorization": f"Bearer {token}"}
         )
+        print(f"[spotify] track_res={track_res.status_code} {track_res.text}")
         data = track_res.json()
         return {
             "title": data["name"],

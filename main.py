@@ -236,6 +236,7 @@ async def handle_business(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.business_message or update.edited_business_message
     if not msg:
         return
+    print(f"[handle_business] connection_id={msg.business_connection_id} from={msg.from_user.id if msg.from_user else None}")
     if not msg.business_connection_id:
         return
     if msg.from_user and msg.from_user.is_bot:

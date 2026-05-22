@@ -146,6 +146,7 @@ async def process_url(
                     await context.bot.send_video(
                         chat_id=chat_id,
                         video=f,
+                        supports_streaming=True,
                         reply_to_message_id=reply_to_message_id,
                         **send_kwargs,
                     )

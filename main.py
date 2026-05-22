@@ -74,46 +74,44 @@ async def download_youtube(url: str, path: str, audio_only: bool = False):
         ydl.download([url])
 
 
-async def get_spotify_meta(track_id: str) -> dict:
+async def get_spotify_meta(url: str) -> dict:
     async with httpx.AsyncClient(timeout=30) as client:
-        token_res = await client.post(
-            "https://accounts.spotify.com/api/token",
-            data={"grant_type": "client_credentials"},
-            auth=(os.getenv("SPOTIFY_CLIENT_ID"), os.getenv("SPOTIFY_CLIENT_SECRET"))
+        res = await client.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0"}
         )
-        print(f"[spotify] token_res={token_res.status_code} {token_res.text}")
-        token = token_res.json().get("access_token")
-        track_res = await client.get(
-            f"https://api.spotify.com/v1/tracks/{track_id}",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        print(f"[spotify] track_res={track_res.status_code} {track_res.text}")
-        data = track_res.json()
-        return {
-            "title": data["name"],
-            "artist": data["artists"][0]["name"]
-        }
+        title = ""
+        artist = ""
+        for line in res.text.splitlines():
+            if 'og:title' in line:
+                title = line.split('content="')[1].split('"')[0]
+            if 'og:description' in line:
+                artist = line.split('content="')[1].split('"')[0].split(" · ")[0]
+        return {"title": title, "artist": artist}
 
 
 async def download_spotify(url: str, path: str) -> dict:
-    track_id = url.split("/track/")[1].split("?")[0]
-    meta = await get_spotify_meta(track_id)
-
+    meta = await get_spotify_meta(url)
     query = f"{meta['artist']} - {meta['title']} audio"
+    print(f"[spotify] searching: {query}")
 
     ydl_opts = {
         "outtmpl": path,
         "quiet": True,
         "noplaylist": True,
-        "format": "bestaudio/best",
+        "format": "bestaudio[ext=m4a]/bestaudio/best",
         "default_search": "ytsearch1",
         "postprocessors": [{
             "key": "FFmpegExtractAudio",
             "preferredcodec": "mp3",
-            "preferredquality": "192",
+            "preferredquality": "320",
         }],
     }
 
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([query])
+
+    return meta
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([query])
 

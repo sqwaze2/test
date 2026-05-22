@@ -282,8 +282,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 app = ApplicationBuilder().token(TOKEN).build()
 
-app.add_handler(MessageHandler(filters.ALL, handle_business))
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_direct))
+app.add_handler(MessageHandler(filters.ALL, handle_business))
 
 app.run_polling(allowed_updates=Update.ALL_TYPES)

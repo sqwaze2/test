@@ -91,11 +91,6 @@ async def download_youtube(url: str, path: str, audio_only: bool = False):
 
 
 async def download_spotify(url: str, uid: int) -> str | None:
-    """
-    Скачивает трек со Spotify через spotDL.
-    spotDL сам ищет трек на YouTube и скачивает аудио.
-    Возвращает путь к скачанному файлу или None при ошибке.
-    """
     output_dir = f"spotify_{uid}"
     os.makedirs(output_dir, exist_ok=True)
 
@@ -116,12 +111,16 @@ async def download_spotify(url: str, uid: int) -> str | None:
         )
     )
 
+    
+    print(f"[spotdl stdout] {result.stdout}")
+    print(f"[spotdl stderr] {result.stderr}")
+    print(f"[spotdl returncode] {result.returncode}")
+
     files = glob.glob(f"{output_dir}/*.mp3")
     if not files:
         return None
 
     return max(files, key=os.path.getctime)
-
 
 async def process_url(
     context,

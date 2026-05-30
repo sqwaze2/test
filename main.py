@@ -67,7 +67,7 @@ async def download_youtube(url: str, path: str, audio_only: bool = False):
         "outtmpl": path,
         "quiet": True,
         "noplaylist": True,
-        # Эмулируем iOS-клиент — YouTube крайне редко требует логин от него
+        
         "extractor_args": {
             "youtube": {
                 "player_client": ["ios", "web"],

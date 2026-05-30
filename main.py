@@ -1,6 +1,9 @@
 import re
 import os
-import httpx
+import glob
+import subprocess
+import asyncio
+
 import yt_dlp
 from dotenv import load_dotenv
 from telegram import Update
@@ -17,11 +20,6 @@ load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
 processed_messages = set()
-
-cookies_content = os.getenv("YOUTUBE_COOKIES")
-if cookies_content:
-    with open("cookies.txt", "w") as f:
-        f.write(cookies_content.replace("\\n", "\n"))
 
 PATTERNS = {
     "tiktok": re.compile(
@@ -59,13 +57,22 @@ async def download_tiktok(url: str, path: str):
 
 
 async def download_youtube(url: str, path: str, audio_only: bool = False):
+    """
+    Скачивает видео/аудио с YouTube.
+    Использует iOS + web клиент — это обходит большинство проверок
+    без необходимости передавать куки.
+    """
     ydl_opts = {
         "outtmpl": path,
         "quiet": True,
         "noplaylist": True,
+        # Эмулируем iOS-клиент — YouTube крайне редко требует логин от него
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["ios", "web"],
+            }
+        },
     }
-    if os.path.exists("cookies.txt"):
-        ydl_opts["cookiefile"] = "cookies.txt"
 
     if audio_only:
         ydl_opts["format"] = "bestaudio/best"
@@ -80,6 +87,39 @@ async def download_youtube(url: str, path: str, audio_only: bool = False):
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
+
+
+async def download_spotify(url: str, uid: int) -> str | None:
+    """
+    Скачивает трек со Spotify через spotDL.
+    spotDL сам ищет трек на YouTube и скачивает аудио.
+    Возвращает путь к скачанному файлу или None при ошибке.
+    """
+    output_dir = f"spotify_{uid}"
+    os.makedirs(output_dir, exist_ok=True)
+
+    result = await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: subprocess.run(
+            [
+                "spotdl",
+                "download",
+                url,
+                "--output", f"{output_dir}/{{title}}.{{output-ext}}",
+                "--format", "mp3",
+                "--bitrate", "320k",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+    )
+
+    files = glob.glob(f"{output_dir}/*.mp3")
+    if not files:
+        return None
+
+    return max(files, key=os.path.getctime)
 
 
 async def process_url(
@@ -109,6 +149,7 @@ async def process_url(
         if platform == "tiktok":
             path = f"video_{uid}.mp4"
             await download_tiktok(url, path)
+
             size_mb = os.path.getsize(path) / (1024 * 1024)
             if size_mb > 2000:
                 os.remove(path)
@@ -118,6 +159,7 @@ async def process_url(
                     text=f"❌ Видео слишком большое ({size_mb:.1f} МБ).",
                 )
                 return
+
             with open(path, "rb") as f:
                 await context.bot.send_video(
                     chat_id=chat_id,
@@ -131,6 +173,7 @@ async def process_url(
         elif platform == "youtube":
             path = f"video_{uid}.mp4"
             await download_youtube(url, path)
+
             size_mb = os.path.getsize(path) / (1024 * 1024)
             if size_mb > 2000:
                 os.remove(path)
@@ -161,15 +204,50 @@ async def process_url(
                 os.remove(path)
 
         elif platform == "spotify":
+            await context.bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg.message_id,
+                text="⏳ Ищу трек на Spotify...",
+            )
+
             try:
+                audio_path = await download_spotify(url, uid)
+                if not audio_path:
+                    await context.bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=msg.message_id,
+                        text="❌ Не удалось найти трек. Возможно, он недоступен в вашем регионе.",
+                    )
+                    return
+
+                with open(audio_path, "rb") as f:
+                    await context.bot.send_audio(
+                        chat_id=chat_id,
+                        audio=f,
+                        reply_to_message_id=reply_to_message_id,
+                        **send_kwargs,
+                    )
+
+                # Чистим временную папку
+                output_dir = f"spotify_{uid}"
+                for f in glob.glob(f"{output_dir}/*"):
+                    os.remove(f)
+                os.rmdir(output_dir)
+
+            except subprocess.TimeoutExpired:
                 await context.bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=msg.message_id,
-                    text="⏳ Скачивание Spotify временно недоступно.",
+                    text="❌ Превышено время ожидания. Попробуй ещё раз.",
                 )
-            except Exception:
-                pass
-            return
+                return
+            except FileNotFoundError:
+                await context.bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=msg.message_id,
+                    text="❌ spotDL не установлен на сервере.",
+                )
+                return
 
         try:
             await context.bot.delete_message(chat_id=chat_id, message_id=msg.message_id)
@@ -185,6 +263,7 @@ async def process_url(
             )
         except Exception:
             pass
+
     except Exception as e:
         try:
             await context.bot.edit_message_text(
@@ -201,8 +280,10 @@ async def handle_direct(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if update.message.business_connection_id:
         return
+
     text = update.message.text or ""
     print(f"[handle_direct] text={text}")
+
     await process_url(
         context=context,
         text=text,
@@ -238,6 +319,7 @@ async def handle_business(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     print(f"[handle_business] text={text}")
+
     await process_url(
         context=context,
         text=text,
@@ -255,14 +337,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Кидай ссылку — пришлю файл:\n"
         "🎬 TikTok → видео\n"
         "▶️ YouTube → видео или аудио\n"
-        "🎵 Spotify → скоро"
+        "🎵 Spotify → MP3"
     )
 
 
 app = ApplicationBuilder().token(TOKEN).build()
-
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_direct))
 app.add_handler(MessageHandler(filters.ALL, handle_business), group=1)
-
 app.run_polling(allowed_updates=Update.ALL_TYPES)

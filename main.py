@@ -24,6 +24,7 @@ processed_messages = set()
 PATTERNS = {
     "tiktok": re.compile(
         r'(https?://)?(www\.)?(vm\.tiktok\.com|vt\.tiktok\.com|tiktok\.com|m\.tiktok\.com)(/[^\s]*)?'
+        r'|(https?://)?(www\.|m\.)?tiktok\.com/@[^/\s]+/video/\d+'
     ),
     "youtube": re.compile(
         r'(https?://)?(www\.)?(youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)([^\s&]+)'
